@@ -95,3 +95,24 @@ export async function stopPrint(id: string): Promise<void> {
   const r = await fetch(`${API}/printers/${id}/stop`, { method: 'POST' })
   if (!r.ok) throw new Error(await r.text())
 }
+
+export type FileEntry = {
+  name: string
+  size: number
+  mod_time: string
+  is_dir: boolean
+}
+
+export type PrinterFilesResponse = {
+  path: string
+  entries: FileEntry[]
+}
+
+export async function getPrinterFiles(
+  id: string,
+  path: string = '/'
+): Promise<PrinterFilesResponse> {
+  const r = await fetch(`${API}/printers/${id}/files?path=${encodeURIComponent(path)}`)
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}

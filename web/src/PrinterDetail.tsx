@@ -1,4 +1,6 @@
-import type { PrinterWithStatus, PrinterData } from './api'
+import { useState, useEffect, useCallback } from 'react'
+import type { PrinterWithStatus, PrinterData, FileEntry } from './api'
+import { getPrinterFiles } from './api'
 
 type Props = {
   printer: PrinterWithStatus
@@ -8,6 +10,13 @@ type Props = {
   onResume: () => void
   onStop: () => void
   onClose: () => void
+}
+
+const PRINT_EXT = ['.gcode', '.3mf', '.gcode.3mf']
+
+function isPrintFile(name: string): boolean {
+  const lower = name.toLowerCase()
+  return PRINT_EXT.some((ext) => lower.endsWith(ext))
 }
 
 const STATE_LABELS: Record<string, string> = {
@@ -29,6 +38,30 @@ export function PrinterDetail({
   onStop,
   onClose,
 }: Props) {
+  const [historyPath, setHistoryPath] = useState('/')
+  const [historyEntries, setHistoryEntries] = useState<FileEntry[]>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [historyError, setHistoryError] = useState<string | null>(null)
+
+  const loadHistory = useCallback(() => {
+    setHistoryError(null)
+    setHistoryLoading(true)
+    getPrinterFiles(printer.id, historyPath)
+      .then((res) => {
+        const files = res.entries
+          .filter((e) => !e.is_dir && isPrintFile(e.name))
+          .sort((a, b) => new Date(b.mod_time).getTime() - new Date(a.mod_time).getTime())
+        setHistoryEntries(files)
+      })
+      .catch((e) => setHistoryError(e instanceof Error ? e.message : 'Falha ao carregar'))
+      .finally(() => setHistoryLoading(false))
+  }, [printer.id, historyPath])
+
+  useEffect(() => {
+    if (!printer.connected) return
+    loadHistory()
+  }, [printer.connected, loadHistory])
+
   const state = data?.gcode_state ?? 'UNKNOWN'
   const stateLabel = STATE_LABELS[state] ?? state
   const chamberOn =
@@ -195,6 +228,58 @@ export function PrinterDetail({
                   </button>
                 </div>
               )}
+
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs text-stone-500">Histórico de impressão</p>
+                  <div className="flex gap-1">
+                    {['/', '/cache'].map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => setHistoryPath(p)}
+                        className={`px-2 py-1 rounded text-xs font-medium ${
+                          historyPath === p
+                            ? 'bg-accent/30 text-accent'
+                            : 'bg-surface-600 text-stone-400 hover:bg-surface-500'
+                        }`}
+                      >
+                        {p === '/' ? 'Raiz' : 'Cache'}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={loadHistory}
+                      disabled={historyLoading}
+                      className="px-2 py-1 rounded text-xs bg-surface-600 text-stone-400 hover:bg-surface-500 disabled:opacity-50"
+                      title="Atualizar"
+                    >
+                      {historyLoading ? '…' : '↻'}
+                    </button>
+                  </div>
+                </div>
+                {historyError ? (
+                  <p className="text-red-400 text-xs">{historyError}</p>
+                ) : historyEntries.length === 0 && !historyLoading ? (
+                  <p className="text-stone-500 text-xs">Nenhum arquivo .gcode/.3mf neste diretório.</p>
+                ) : (
+                  <ul className="rounded-lg bg-surface-700/50 divide-y divide-surface-600 max-h-40 overflow-y-auto">
+                    {historyEntries.map((e) => (
+                      <li
+                        key={e.name}
+                        className="px-3 py-2 flex items-center justify-between gap-2 text-sm"
+                      >
+                        <span className="font-mono text-stone-200 truncate" title={e.name}>
+                          {e.name}
+                        </span>
+                        <span className="text-stone-500 text-xs shrink-0">
+                          {(e.size / 1024).toFixed(1)} KB · {e.mod_time}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
 
               {data.print_error_code && (
                 <div className="rounded-lg bg-red-900/20 border border-red-500/30 px-3 py-2 text-sm text-red-300">

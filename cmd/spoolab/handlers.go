@@ -2,12 +2,12 @@ package main
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"strings"
 
 	"github.com/torbenconto/bambulabs_api"
 	"github.com/torbenconto/bambulabs_api/light"
-	"github.com/torbenconto/bambulabs_api/state"
 )
 
 type Server struct {
@@ -88,11 +88,18 @@ func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 		AccessCode:   stored.AccessCode,
 		SerialNumber: stored.SerialNumber,
 	}
+	log.Printf("[Spoolab] Conectando à impressora %s em %s:8883 ...", stored.SerialNumber, stored.Host)
 	printer := bambulabs_api.NewPrinter(cfg)
 	if err := printer.Connect(); err != nil {
-		http.Error(w, err.Error(), http.StatusBadGateway)
+		log.Printf("[Spoolab] Erro ao conectar %s: %v", stored.SerialNumber, err)
+		msg := err.Error()
+		if strings.Contains(strings.ToLower(msg), "timeout") || strings.Contains(msg, "i/o timeout") {
+			msg = "Timeout ao conectar na impressora. Confira se o PC está na mesma rede (mesmo Wi‑Fi/LAN), se o IP está correto e se o firewall não bloqueia a porta 8883."
+		}
+		http.Error(w, msg, http.StatusBadGateway)
 		return
 	}
+	log.Printf("[Spoolab] Impressora %s conectada.", stored.SerialNumber)
 	s.store.SetPrinter(id, printer)
 	writeJSON(w, map[string]string{"status": "connected"})
 }
@@ -122,6 +129,45 @@ func (s *Server) handleGetData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, dataToMap(data))
+}
+
+func (s *Server) handleListFiles(w http.ResponseWriter, r *http.Request) {
+	id := pathID(r)
+	p, ok := s.store.GetPrinter(id)
+	if !ok {
+		http.Error(w, "printer not connected", http.StatusBadRequest)
+		return
+	}
+	path := r.URL.Query().Get("path")
+	if path == "" {
+		path = "/"
+	}
+	if strings.Contains(path, "..") {
+		http.Error(w, "invalid path", http.StatusBadRequest)
+		return
+	}
+	entries, err := p.ListDirectory(path)
+	if err != nil {
+		log.Printf("[Spoolab] ListDirectory %q: %v", path, err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	type fileInfo struct {
+		Name    string `json:"name"`
+		Size    int64  `json:"size"`
+		ModTime string `json:"mod_time"`
+		IsDir   bool   `json:"is_dir"`
+	}
+	out := make([]fileInfo, 0, len(entries))
+	for _, e := range entries {
+		out = append(out, fileInfo{
+			Name:    e.Name(),
+			Size:    e.Size(),
+			ModTime: e.ModTime().Format("2006-01-02 15:04:05"),
+			IsDir:   e.IsDir(),
+		})
+	}
+	writeJSON(w, map[string]interface{}{"path": path, "entries": out})
 }
 
 func (s *Server) handleLight(w http.ResponseWriter, r *http.Request) {

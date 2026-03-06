@@ -30,6 +30,7 @@ func main() {
 	mux.HandleFunc("POST /api/printers/{id}/connect", s.handleConnect)
 	mux.HandleFunc("POST /api/printers/{id}/disconnect", s.handleDisconnect)
 	mux.HandleFunc("GET /api/printers/{id}/data", s.handleGetData)
+	mux.HandleFunc("GET /api/printers/{id}/files", s.handleListFiles)
 	mux.HandleFunc("POST /api/printers/{id}/light", s.handleLight)
 	mux.HandleFunc("POST /api/printers/{id}/pause", s.handlePause)
 	mux.HandleFunc("POST /api/printers/{id}/resume", s.handleResume)
