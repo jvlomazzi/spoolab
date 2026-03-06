@@ -21,3 +21,7 @@ go.work.sum
 # IDE configuration files
 .idea
 .vscode
+
+# Spoolab frontend
+web/node_modules
+web/dist
