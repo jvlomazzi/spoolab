@@ -2,12 +2,14 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
 
 	"github.com/torbenconto/bambulabs_api"
 	"github.com/torbenconto/bambulabs_api/light"
+	"image/color"
 )
 
 type Server struct {
@@ -41,6 +43,7 @@ func (s *Server) handleAddPrinter(w http.ResponseWriter, r *http.Request) {
 		Host         string `json:"host"`
 		AccessCode   string `json:"access_code"`
 		SerialNumber string `json:"serial_number"`
+		Model        string `json:"model"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, "invalid body", http.StatusBadRequest)
@@ -51,12 +54,57 @@ func (s *Server) handleAddPrinter(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := body.SerialNumber
-	stored := StoredPrinter{ID: id, Host: body.Host, AccessCode: body.AccessCode, SerialNumber: body.SerialNumber}
+	stored := StoredPrinter{
+		ID:           id,
+		Host:         body.Host,
+		AccessCode:   body.AccessCode,
+		SerialNumber: body.SerialNumber,
+		Model:        body.Model,
+	}
 	s.store.Add(stored)
 	if err := s.store.Save(); err != nil {
 		http.Error(w, "failed to save", http.StatusInternalServerError)
 		return
 	}
+	writeJSON(w, stored)
+}
+
+func (s *Server) handleUpdatePrinter(w http.ResponseWriter, r *http.Request) {
+	id := pathID(r)
+	stored, ok := s.store.Get(id)
+	if !ok {
+		http.Error(w, "printer not found", http.StatusNotFound)
+		return
+	}
+	var body struct {
+		Model            string   `json:"model"`
+		MachinePrice     *float64 `json:"machine_price"`
+		MachineLifeHours *float64 `json:"machine_life_hours"`
+		CostPerHour      *float64 `json:"cost_per_hour"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "invalid body", http.StatusBadRequest)
+		return
+	}
+	s.store.UpdateModel(id, body.Model)
+	if body.MachinePrice != nil || body.MachineLifeHours != nil || body.CostPerHour != nil {
+		price, life, cost := stored.MachinePrice, stored.MachineLifeHours, stored.CostPerHour
+		if body.MachinePrice != nil {
+			price = *body.MachinePrice
+		}
+		if body.MachineLifeHours != nil {
+			life = *body.MachineLifeHours
+		}
+		if body.CostPerHour != nil {
+			cost = *body.CostPerHour
+		}
+		s.store.UpdateAnalytics(id, price, life, cost)
+	}
+	if err := s.store.Save(); err != nil {
+		http.Error(w, "failed to save", http.StatusInternalServerError)
+		return
+	}
+	stored, _ = s.store.Get(id)
 	writeJSON(w, stored)
 }
 
@@ -255,12 +303,48 @@ func writeJSON(w http.ResponseWriter, v interface{}) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 
+func rgbaToHex(c color.RGBA) string {
+	if c.A == 0 {
+		return "#000000"
+	}
+	return fmt.Sprintf("#%02x%02x%02x", c.R, c.G, c.B)
+}
+
+func trayToMap(t bambulabs_api.Tray) map[string]interface{} {
+	return map[string]interface{}{
+		"id":                  t.ID,
+		"bed_temperature":     t.BedTemperature,
+		"drying_temperature":  t.DryingTemperature,
+		"drying_time":         t.DryingTime,
+		"nozzle_temp_max":     t.NozzleTempMax,
+		"nozzle_temp_min":     t.NozzleTempMin,
+		"tray_color":          rgbaToHex(t.TrayColor),
+		"tray_diameter":       t.TrayDiameter,
+		"tray_sub_brands":     t.TraySubBrands,
+		"tray_type":           t.TrayType,
+		"tray_weight":         t.TrayWeight,
+	}
+}
+
 func dataToMap(d bambulabs_api.Data) map[string]interface{} {
 	lights := make([]map[string]string, 0, len(d.LightReport))
 	for _, lr := range d.LightReport {
 		lights = append(lights, map[string]string{
 			"node": string(lr.Node),
 			"mode": string(lr.Mode),
+		})
+	}
+	amsList := make([]map[string]interface{}, 0, len(d.Ams))
+	for _, a := range d.Ams {
+		trays := make([]map[string]interface{}, 0, len(a.Trays))
+		for _, t := range a.Trays {
+			trays = append(trays, trayToMap(t))
+		}
+		amsList = append(amsList, map[string]interface{}{
+			"id":          a.ID,
+			"humidity":    a.Humidity,
+			"temperature": a.Temperature,
+			"trays":       trays,
 		})
 	}
 	return map[string]interface{}{
@@ -277,7 +361,13 @@ func dataToMap(d bambulabs_api.Data) map[string]interface{} {
 		"print_error_code":           d.PrintErrorCode,
 		"lights_report":              lights,
 		"ams_exists":                 d.AmsExists,
+		"ams":                        amsList,
+		"vt_tray":                    trayToMap(d.VtTray),
 		"wifi_signal":                d.WifiSignal,
+		"nozzle_diameter":            d.NozzleDiameter,
+		"auxiliary_fan_speed":        d.AuxiliaryFanSpeed,
+		"chamber_fan_speed":          d.ChamberFanSpeed,
+		"part_fan_speed":             d.PartFanSpeed,
 	}
 }
 

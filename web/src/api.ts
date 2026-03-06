@@ -5,9 +5,34 @@ export type Printer = {
   host: string
   access_code: string
   serial_number: string
+  model?: string
+  machine_price?: number
+  machine_life_hours?: number
+  cost_per_hour?: number
 }
 
 export type PrinterWithStatus = Printer & { connected: boolean }
+
+export type TrayData = {
+  id: number
+  bed_temperature: number
+  drying_temperature: number
+  drying_time: number
+  nozzle_temp_max: number
+  nozzle_temp_min: number
+  tray_color: string
+  tray_diameter: number
+  tray_sub_brands: string
+  tray_type: string
+  tray_weight: number
+}
+
+export type AmsData = {
+  id: number
+  humidity: number
+  temperature: number
+  trays: TrayData[]
+}
 
 export type PrinterData = {
   gcode_state: string
@@ -23,7 +48,13 @@ export type PrinterData = {
   print_error_code: string
   lights_report: { node: string; mode: string }[]
   ams_exists: boolean
+  ams?: AmsData[]
+  vt_tray?: TrayData
   wifi_signal: string
+  nozzle_diameter?: string
+  auxiliary_fan_speed?: number
+  chamber_fan_speed?: number
+  part_fan_speed?: number
 }
 
 export async function listPrinters(): Promise<PrinterWithStatus[]> {
@@ -36,9 +67,28 @@ export async function addPrinter(body: {
   host: string
   access_code: string
   serial_number: string
+  model?: string
 }): Promise<Printer> {
   const r = await fetch(`${API}/printers`, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}
+
+export async function updatePrinter(
+  id: string,
+  body: {
+    model?: string
+    machine_price?: number
+    machine_life_hours?: number
+    cost_per_hour?: number
+  }
+): Promise<Printer> {
+  const r = await fetch(`${API}/printers/${id}`, {
+    method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })

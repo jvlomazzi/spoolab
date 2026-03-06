@@ -4,8 +4,9 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
+    "copy-printers": "node -e \"const fs=require('fs');const path=require('path');const src=path.join(process.cwd(),'..','assets','printers');const dest=path.join(process.cwd(),'public','printers');if(fs.existsSync(src)){fs.mkdirSync(dest,{recursive:true});for(const f of fs.readdirSync(src)){fs.copyFileSync(path.join(src,f),path.join(dest,f));}console.log('Imagens das impressoras copiadas para public/printers');}else{console.warn('Pasta assets/printers não encontrada. Crie web/public/printers e copie as imagens manualmente.');}\"",
+    "dev": "npm run copy-printers && vite",
+    "build": "npm run copy-printers && tsc -b && vite build",
     "preview": "vite preview"
   },
   "dependencies": {

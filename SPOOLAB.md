@@ -29,6 +29,14 @@ A API sobe em **http://localhost:8080**. A lista de impressoras é salva em:
 
 ### 2. Frontend (UI)
 
+Para exibir as fotos dos modelos nas impressoras, copie as imagens da pasta de assets para o frontend:
+
+```bash
+# Windows (PowerShell)
+New-Item -ItemType Directory -Force -Path web\public\printers | Out-Null
+Copy-Item assets\printers\* web\public\printers\ -Force
+```
+
 ```bash
 cd web
 npm install

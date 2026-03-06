@@ -10,10 +10,14 @@ import (
 )
 
 type StoredPrinter struct {
-	ID           string `json:"id"`
-	Host         string `json:"host"`
-	AccessCode   string `json:"access_code"`
-	SerialNumber string `json:"serial_number"`
+	ID               string  `json:"id"`
+	Host             string  `json:"host"`
+	AccessCode       string  `json:"access_code"`
+	SerialNumber     string  `json:"serial_number"`
+	Model            string  `json:"model,omitempty"`
+	MachinePrice     float64 `json:"machine_price,omitempty"`     // preço de compra (para depreciação)
+	MachineLifeHours float64 `json:"machine_life_hours,omitempty"` // vida útil em horas
+	CostPerHour      float64 `json:"cost_per_hour,omitempty"`      // custo operação (energia + filamento) por hora
 }
 
 type PrinterStore struct {
@@ -60,6 +64,30 @@ func (s *PrinterStore) Get(id string) (*StoredPrinter, bool) {
 	defer s.mu.RUnlock()
 	p, ok := s.items[id]
 	return p, ok
+}
+
+func (s *PrinterStore) UpdateModel(id string, model string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	p, ok := s.items[id]
+	if !ok {
+		return false
+	}
+	p.Model = model
+	return true
+}
+
+func (s *PrinterStore) UpdateAnalytics(id string, machinePrice, machineLifeHours, costPerHour float64) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	p, ok := s.items[id]
+	if !ok {
+		return false
+	}
+	p.MachinePrice = machinePrice
+	p.MachineLifeHours = machineLifeHours
+	p.CostPerHour = costPerHour
+	return true
 }
 
 func (s *PrinterStore) List() []StoredPrinter {

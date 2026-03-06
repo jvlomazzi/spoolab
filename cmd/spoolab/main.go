@@ -26,6 +26,7 @@ func main() {
 
 	mux.HandleFunc("GET /api/printers", s.handleListPrinters)
 	mux.HandleFunc("POST /api/printers", s.handleAddPrinter)
+	mux.HandleFunc("PATCH /api/printers/{id}", s.handleUpdatePrinter)
 	mux.HandleFunc("DELETE /api/printers/{id}", s.handleRemovePrinter)
 	mux.HandleFunc("POST /api/printers/{id}/connect", s.handleConnect)
 	mux.HandleFunc("POST /api/printers/{id}/disconnect", s.handleDisconnect)

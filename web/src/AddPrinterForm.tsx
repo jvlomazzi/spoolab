@@ -1,13 +1,15 @@
-import { useState, FormEvent } from 'react'
+import { useState, type FormEvent } from 'react'
+import { PRINTER_MODELS } from './printerImages'
 
 type Props = {
-  onAdd: (host: string, accessCode: string, serialNumber: string) => Promise<void>
+  onAdd: (host: string, accessCode: string, serialNumber: string, model: string) => Promise<void>
 }
 
 export function AddPrinterForm({ onAdd }: Props) {
   const [host, setHost] = useState('')
   const [accessCode, setAccessCode] = useState('')
   const [serialNumber, setSerialNumber] = useState('')
+  const [model, setModel] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
   async function handleSubmit(e: FormEvent) {
@@ -15,10 +17,11 @@ export function AddPrinterForm({ onAdd }: Props) {
     if (!host.trim() || !accessCode.trim() || !serialNumber.trim()) return
     setSubmitting(true)
     try {
-      await onAdd(host.trim(), accessCode.trim(), serialNumber.trim())
+      await onAdd(host.trim(), accessCode.trim(), serialNumber.trim(), model.trim())
       setHost('')
       setAccessCode('')
       setSerialNumber('')
+      setModel('')
     } finally {
       setSubmitting(false)
     }
@@ -30,7 +33,7 @@ export function AddPrinterForm({ onAdd }: Props) {
       className="rounded-xl border border-surface-600 bg-surface-700/50 p-4 space-y-3"
     >
       <h2 className="text-sm font-medium text-stone-300">Nova impressora</h2>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <div>
           <label htmlFor="host" className="block text-xs text-stone-500 mb-1">
             IP
@@ -70,6 +73,23 @@ export function AddPrinterForm({ onAdd }: Props) {
             placeholder="Ex: 28W1B41200A123"
             className="w-full px-3 py-2 rounded-lg bg-surface-800 border border-surface-600 text-stone-200 placeholder-stone-500 focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent font-mono text-sm"
           />
+        </div>
+        <div>
+          <label htmlFor="model" className="block text-xs text-stone-500 mb-1">
+            Modelo
+          </label>
+          <select
+            id="model"
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg bg-surface-800 border border-surface-600 text-stone-200 focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent text-sm"
+          >
+            {PRINTER_MODELS.map((m) => (
+              <option key={m.value || 'none'} value={m.value}>
+                {m.label}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
       <div className="flex justify-end">
